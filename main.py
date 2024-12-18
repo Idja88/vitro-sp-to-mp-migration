@@ -20,31 +20,31 @@ mp_login = {'login': mpconfig['user'], 'password': mpconfig['password']}
 mp_url = mpconfig['url']
 
 def get_sp_token(sp_url, sp_login, sp_headers):
-        contextinfo_api = f"{sp_url}/_api/contextinfo"
-        try:
-                with requests.post(contextinfo_api, auth=sp_login, headers=sp_headers) as response:
-                        response.raise_for_status()
-                        response_json = json.loads(response.text)
-                        value = response_json['d']['GetContextWebInformation']['FormDigestValue']
-                        return value
-        except requests.exceptions.RequestException as e:
-                print(f"Error occurred: {e}")
-                return None
+    contextinfo_api = f"{sp_url}/_api/contextinfo"
+    try:
+        with requests.post(contextinfo_api, auth=sp_login, headers=sp_headers) as response:
+            response.raise_for_status()
+            response_json = json.loads(response.text)
+            value = response_json['d']['GetContextWebInformation']['FormDigestValue']
+            return value
+    except requests.exceptions.RequestException as e:
+            print(f"Error occurred: {e}")
+            return None
 
 def get_sp_list_item(sp_url, sp_headers, sp_list):
     list_url = f"{sp_url}/_api/web/lists/GetByTitle('Типы документов')/items"
     get_headers = sp_headers.copy()
     get_headers['X-RequestDigest'] = get_sp_token(sp_url, sp_login, sp_headers)
     try:
-            with requests.get(list_url, verify=False, auth=sp_login, headers=get_headers) as response:
-                    response.raise_for_status()
-                    response_json = json.loads(response.text)
-                    value = response_json["d"]["results"]
-                    return value
+        with requests.get(list_url, verify=False, auth=sp_login, headers=get_headers) as response:
+            response.raise_for_status()
+            response_json = json.loads(response.text)
+            value = response_json["d"]["results"]
+            return value
     except requests.exceptions.RequestException as e:
             print(f"Error occurred: {e}")
             return None
-        
+
 def get_mp_token(mp_url, mp_login):
     res = requests.post(mp_url + '/api/security/login', json = mp_login)
     sequritySession = json.loads(res.text)

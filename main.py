@@ -20,9 +20,9 @@ mp_login = {'login': mpconfig['user'], 'password': mpconfig['password']}
 mp_url = mpconfig['url']
 
 def get_sp_token(sp_url, sp_login, sp_headers):
-    contextinfo_api = f"{sp_url}/_api/contextinfo"
+    url_string = f"{sp_url}/_api/contextinfo"
     try:
-        with requests.post(contextinfo_api, auth=sp_login, headers=sp_headers) as response:
+        with requests.post(url=url_string, auth=sp_login, headers=sp_headers) as response:
             response.raise_for_status()
             response_json = json.loads(response.text)
             value = response_json['d']['GetContextWebInformation']['FormDigestValue']
@@ -31,12 +31,12 @@ def get_sp_token(sp_url, sp_login, sp_headers):
             print(f"Error occurred: {e}")
             return None
 
-def get_sp_list_item(sp_url, sp_headers, sp_list):
-    list_url = f"{sp_url}/_api/web/lists/GetByTitle('Типы документов')/items"
+def get_sp_list_item(sp_url, sp_login, sp_headers, sp_list):
+    url_string = f"{sp_url}/_api/web/lists('{sp_list}')/items"
     get_headers = sp_headers.copy()
     get_headers['X-RequestDigest'] = get_sp_token(sp_url, sp_login, sp_headers)
     try:
-        with requests.get(list_url, verify=False, auth=sp_login, headers=get_headers) as response:
+        with requests.get(url=url_string, auth=sp_login, headers=get_headers) as response:
             response.raise_for_status()
             response_json = json.loads(response.text)
             value = response_json["d"]["results"]
@@ -46,20 +46,29 @@ def get_sp_list_item(sp_url, sp_headers, sp_list):
             return None
 
 def get_mp_token(mp_url, mp_login):
-    res = requests.post(mp_url + '/api/security/login', json = mp_login)
-    sequritySession = json.loads(res.text)
-    print(f'\nlogin result: \n{sequritySession}')
-    return sequritySession['token']
+    url_string = f"{mp_url}/api/security/login"
+    try:
+        with requests.post(url=url_string, json=mp_login) as response:
+            response.raise_for_status()
+            response_json = json.loads(response.text)
+            value = response_json['token']
+            return value
+    except requests.exceptions.RequestException as e:
+        print(f"Error occurred: {e}")
+        return None
 
 def update_mp_list(token, data):
-    itemListJson = json.dumps([data])
-    itemUpdateRequest = { 'itemListJson': itemListJson }
-    
-    res = requests.post(mp_url + '/api/item/update', headers = {'Authorization': token}, data = itemUpdateRequest)
-    itemList = json.loads(res.text)
-    
-    print(f'\nupdate result: \n{itemList}')
-    return itemList
+    url_string = f"{mp_url}/api/item/update"
+    item_list_json = json.dumps([data])
+    item_update_request = {'itemListJson': item_list_json}
+    try:
+        with requests.post(url=url_string, headers={'Authorization': token}, data=item_update_request) as response:
+            response.raise_for_status()
+            response_json = json.loads(response.text)
+            return response_json
+    except requests.exceptions.RequestException as e:
+        print(f"Error occurred: {e}")
+        return None
 
 data_list = get_sp_list_item(sp_url, sp_headers, sp_list)
 
@@ -78,7 +87,4 @@ for item in data_list:
 mp_token = get_mp_token(mp_url, mp_login)
 
 for element in processed_data:
-    try:
-        update_mp_list(mp_token, element)
-    except requests.exceptions.RequestException as e:
-        print(f"Error occurred: {e}")
+    update_mp_list(mp_token, element)

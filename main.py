@@ -69,13 +69,15 @@ def update_mp_list(token, data):
         return None
 
 def get_mp_list_item_lookup_id(token, name, mp_list):
-    url_string = f"{mp_url}/api/item/getList/{mp_list}"
+    url_string = f"{mp_url}/api/item/getRecursive/{mp_list}"
     filter_string = f'item => item.GetValueAsString("name") == "{name}"'
     payload = {"query": filter_string}
     try:
          with requests.post(url=url_string, headers={'Authorization': token}, json=payload) as response:
             response.raise_for_status()
             response_json = json.loads(response.text)
+            if len(response_json) == 0:
+                return None
             value = response_json[0]["id"]
             return value
     except requests.exceptions.RequestException as e:
@@ -96,7 +98,7 @@ def main():
     sp_token = get_sp_token(sp_url, sp_login, sp_headers)
     mp_token = get_mp_token(mp_url, mp_login)
     
-    data_list = get_sp_list_item(sp_url, sp_headers, sp_list, sp_token, sp_content_type)
+    data_list = get_sp_list_item(sp_url, sp_login, sp_headers, sp_list, sp_token, sp_content_type)
 
     if data_list is not None:
         processed_data = []

@@ -15,8 +15,8 @@ def get_sp_token(sp_url, sp_login, sp_headers):
             print(f"Error occurred: {e}")
             return None
 
-def get_sp_list_item(sp_url, sp_login, sp_headers, sp_list, sp_token):
-    url_string = f"{sp_url}/_api/web/lists('{sp_list}')/items"
+def get_sp_list_item(sp_url, sp_login, sp_headers, sp_list, sp_token, sp_content_type_id):
+    url_string = f"{sp_url}/_api/web/lists('{sp_list}')/items?$filter=ContentTypeId eq '{sp_content_type_id}'"
     get_headers = sp_headers.copy()
     get_headers['X-RequestDigest'] = sp_token
     try:
@@ -81,27 +81,36 @@ def get_mp_list_item_lookup_id(token, name, mp_list):
     except requests.exceptions.RequestException as e:
         print(f"Error occurred: {e}")
         return None
+    
+def process_field(item, field_config, sp_token, mp_token):
+    if field_config['type'] == 'direct':
+        return item.get(field_config['sp_source'])
+    elif field_config['type'] == 'lookup':
+        sp_lookup_id = item.get(field_config['sp_source'])
+        if sp_lookup_id:
+            sp_title = get_sp_list_item_name(sp_url, sp_login, sp_headers, field_config['sp_list'], sp_token, sp_lookup_id)
+            return get_mp_list_item_lookup_id(mp_token, sp_title, field_config['mp_list'])
+    return None
 
 def main():
     sp_token = get_sp_token(sp_url, sp_login, sp_headers)
-    data_list = get_sp_list_item(sp_url, sp_headers, sp_list, sp_token)
-
-    processed_data = []
-    for item in data_list:
-        processed_item = {
-            "list_id": mpconfig['list'],
-            "content_type_id": mpconfig['content_type'],
-            "name": item.get('Title'),
-            "code": item.get('VitroBaseCode'),
-            "translit": item.get('VitroBaseTranslit'),
-            "is_for_cypher": item.get('DocumentTypeIsForCypher')
-        }
-        processed_data.append(processed_item)
-
     mp_token = get_mp_token(mp_url, mp_login)
+    
+    data_list = get_sp_list_item(sp_url, sp_headers, sp_list, sp_token, sp_content_type)
 
-    for element in processed_data:
-        update_mp_list(mp_token, element)
+    if data_list is not None:
+        processed_data = []
+        for item in data_list:
+            processed_item = {
+                "list_id": mp_list,
+                "content_type_id": mp_content_type,
+            }
+            for field_name, field_config in mapping_config['fields'].items():
+                processed_item[field_name] = process_field(item, field_config, sp_token, mp_token)
+            processed_data.append(processed_item)
+
+        for element in processed_data:
+            update_mp_list(mp_token, element)
 
 if __name__ == '__main__':
     root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -111,13 +120,17 @@ if __name__ == '__main__':
         config = json.load(config_file)
         spconfig = config['sp']
         mpconfig = config['mp']
+        mapping_config = config['content_type_mapping']
 
     sp_login = HttpNtlmAuth(spconfig['user'], spconfig['password'])
     sp_url = spconfig['url']
-    sp_list = spconfig['list']
+    sp_list = mapping_config['sp_list']
+    sp_content_type = mapping_config['sp_content']
     sp_headers = {'Accept': 'application/json;odata=verbose',"content-type": "application/json;odata=verbose"}
 
     mp_login = {'login': mpconfig['user'], 'password': mpconfig['password']}
     mp_url = mpconfig['url']
+    mp_list = mapping_config['mp_list']
+    mp_content_type = mapping_config['mp_content']
 
     main()

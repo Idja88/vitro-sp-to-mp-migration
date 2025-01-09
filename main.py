@@ -30,18 +30,18 @@ def get_sp_list_item(sp_url, sp_login, sp_headers, sp_list, sp_token, sp_content
             return None
 
 def get_sp_list_item_name(sp_url, sp_login, sp_headers, sp_list, sp_token, item_id):
-        list_url = f"{sp_url}/_api/web/lists('{sp_list}')/items?$filter=ID eq '{item_id}'"
-        get_headers = sp_headers.copy()
-        get_headers['X-RequestDigest'] = sp_token
-        try:
-                with requests.get(list_url, auth=sp_login, headers=get_headers) as response:
-                        response.raise_for_status()
-                        response_json = json.loads(response.text)
-                        value = response_json["d"]["results"]
-                        return value[0]["Title"]
-        except requests.exceptions.RequestException as e:
-                print(f"Error occurred: {e}")
-                return None
+    list_url = f"{sp_url}/_api/web/lists('{sp_list}')/items?$filter=ID eq '{item_id}'"
+    get_headers = sp_headers.copy()
+    get_headers['X-RequestDigest'] = sp_token
+    try:
+            with requests.get(list_url, auth=sp_login, headers=get_headers) as response:
+                    response.raise_for_status()
+                    response_json = json.loads(response.text)
+                    value = response_json["d"]["results"]
+                    return value[0]["Title"]
+    except requests.exceptions.RequestException as e:
+            print(f"Error occurred: {e}")
+            return None
 
 def get_mp_token(mp_url, mp_login):
     url_string = f"{mp_url}/api/security/login"
@@ -78,8 +78,9 @@ def get_mp_list_item_lookup_id(token, name, mp_list):
             response_json = json.loads(response.text)
             if len(response_json) == 0:
                 return None
-            value = response_json[0]["id"]
-            return value
+            else:
+                value = response_json[0]["id"]
+                return value
     except requests.exceptions.RequestException as e:
         print(f"Error occurred: {e}")
         return None

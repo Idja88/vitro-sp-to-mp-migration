@@ -19,12 +19,16 @@ def get_sp_list_item(sp_url, sp_login, sp_headers, sp_list, sp_token, sp_content
     url_string = f"{sp_url}/_api/web/lists('{sp_list}')/items?$filter=ContentTypeId eq '{sp_content_type_id}'"
     get_headers = sp_headers.copy()
     get_headers['X-RequestDigest'] = sp_token
+    all_items = []
     try:
-        with requests.get(url=url_string, auth=sp_login, headers=get_headers) as response:
-            response.raise_for_status()
-            response_json = json.loads(response.text)
-            value = response_json["d"]["results"]
-            return value
+        while url_string:
+            with requests.get(url=url_string, auth=sp_login, headers=get_headers) as response:
+                response.raise_for_status()
+                response_json = json.loads(response.text)
+                value = response_json["d"]["results"]
+                all_items.extend(value)
+                url_string = response_json["d"].get("__next")
+        return all_items
     except requests.exceptions.RequestException as e:
             print(f"Error occurred: {e}")
             return None
@@ -57,7 +61,7 @@ def get_mp_token(mp_url, mp_login):
 
 def update_mp_list(token, data):
     url_string = f"{mp_url}/api/item/update"
-    item_list_json = json.dumps([data])
+    item_list_json = json.dumps(data)
     item_update_request = {'itemListJson': item_list_json}
     try:
         with requests.post(url=url_string, headers={'Authorization': token}, data=item_update_request) as response:
@@ -92,7 +96,8 @@ def process_field(item, field_config, sp_token, mp_token):
         sp_lookup_id = item.get(field_config['sp_source'])
         if sp_lookup_id:
             sp_title = get_sp_list_item_name(sp_url, sp_login, sp_headers, field_config['sp_list'], sp_token, sp_lookup_id)
-            return get_mp_list_item_lookup_id(mp_token, sp_title, field_config['mp_list'])
+            mp_lookup_id = get_mp_list_item_lookup_id(mp_token, sp_title, field_config['mp_list'])
+            return mp_lookup_id
     return None
 
 def main():
@@ -112,8 +117,7 @@ def main():
                 processed_item[field_name] = process_field(item, field_config, sp_token, mp_token)
             processed_data.append(processed_item)
 
-        for element in processed_data:
-            update_mp_list(mp_token, element)
+        update_mp_list(mp_token, processed_data)
 
 if __name__ == '__main__':
     root_dir = os.path.dirname(os.path.abspath(__file__))

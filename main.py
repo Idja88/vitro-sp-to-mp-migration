@@ -5,6 +5,12 @@ from requests_ntlm import HttpNtlmAuth
 
 def get_sp_token(sp_url, sp_login, sp_headers):
     url_string = f"{sp_url}/_api/contextinfo"
+
+    sp_headers.update({
+        'X-AUTHENTICATION-MODE': 'windows',
+        'X-FORMS_BASED_AUTH_ACCEPTED': 'f'
+    })
+
     try:
         with requests.post(url=url_string, auth=sp_login, headers=sp_headers) as response:
             response.raise_for_status()
@@ -34,6 +40,8 @@ def get_sp_list_item(sp_url, sp_login, sp_headers, sp_list, sp_token, sp_content
             return None
 
 def get_sp_list_item_name(sp_url, sp_login, sp_headers, sp_list, sp_token, item_id):
+    if not item_id:
+         return None
     list_url = f"{sp_url}/_api/web/lists('{sp_list}')/items?$filter=ID eq '{item_id}'"
     get_headers = sp_headers.copy()
     get_headers['X-RequestDigest'] = sp_token
@@ -41,6 +49,8 @@ def get_sp_list_item_name(sp_url, sp_login, sp_headers, sp_list, sp_token, item_
             with requests.get(list_url, auth=sp_login, headers=get_headers) as response:
                     response.raise_for_status()
                     response_json = json.loads(response.text)
+                    if len(response_json) == 0:
+                        return None
                     value = response_json["d"]["results"]
                     return value[0]["Title"]
     except requests.exceptions.RequestException as e:
@@ -59,12 +69,12 @@ def get_mp_token(mp_url, mp_login):
         print(f"Error occurred: {e}")
         return None
 
-def update_mp_list(token, data):
+def update_mp_list(mp_url, mp_token, data):
     url_string = f"{mp_url}/api/item/update"
     item_list_json = json.dumps(data)
     item_update_request = {'itemListJson': item_list_json}
     try:
-        with requests.post(url=url_string, headers={'Authorization': token}, data=item_update_request) as response:
+        with requests.post(url=url_string, headers={'Authorization': mp_token}, data=item_update_request) as response:
             response.raise_for_status()
             response_json = json.loads(response.text)
             return response_json
@@ -72,19 +82,20 @@ def update_mp_list(token, data):
         print(f"Error occurred: {e}")
         return None
 
-def get_mp_list_item_lookup_id(token, name, mp_list):
+def get_mp_list_item_lookup_id(mp_url, mp_list, mp_token, name):
+    if not name:
+        return None
     url_string = f"{mp_url}/api/item/getRecursive/{mp_list}"
     filter_string = f'item => item.GetValueAsString("name") == "{name}"'
     payload = {"query": filter_string}
     try:
-         with requests.post(url=url_string, headers={'Authorization': token}, json=payload) as response:
+         with requests.post(url=url_string, headers={'Authorization': mp_token}, json=payload) as response:
             response.raise_for_status()
             response_json = json.loads(response.text)
             if len(response_json) == 0:
                 return None
-            else:
-                value = response_json[0]["id"]
-                return value
+            value = response_json[0]["id"]
+            return value
     except requests.exceptions.RequestException as e:
         print(f"Error occurred: {e}")
         return None
@@ -96,7 +107,7 @@ def process_field(item, field_config, sp_token, mp_token):
         sp_lookup_id = item.get(field_config['sp_source'])
         if sp_lookup_id:
             sp_title = get_sp_list_item_name(sp_url, sp_login, sp_headers, field_config['sp_list'], sp_token, sp_lookup_id)
-            mp_lookup_id = get_mp_list_item_lookup_id(mp_token, sp_title, field_config['mp_list'])
+            mp_lookup_id = get_mp_list_item_lookup_id(mp_url, field_config['mp_list'], mp_token, sp_title)
             return mp_lookup_id
     return None
 
@@ -117,7 +128,7 @@ def main():
                 processed_item[field_name] = process_field(item, field_config, sp_token, mp_token)
             processed_data.append(processed_item)
 
-        update_mp_list(mp_token, processed_data)
+        update_mp_list(mp_url, mp_token, processed_data)
 
 if __name__ == '__main__':
     root_dir = os.path.dirname(os.path.abspath(__file__))
@@ -133,7 +144,7 @@ if __name__ == '__main__':
     sp_url = spconfig['url']
     sp_list = mapping_config['sp_list']
     sp_content_type = mapping_config['sp_content']
-    sp_headers = {'Accept': 'application/json;odata=verbose',"content-type": "application/json;odata=verbose"}
+    sp_headers = {'Accept': 'application/json;odata=verbose', "Content-type": "application/json;odata=verbose"}
 
     mp_login = {'login': mpconfig['user'], 'password': mpconfig['password']}
     mp_url = mpconfig['url']

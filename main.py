@@ -52,6 +52,8 @@ def get_sp_list_item_name(sp_url, sp_login, sp_headers, sp_list, sp_token, item_
                     if len(response_json) == 0:
                         return None
                     value = response_json["d"]["results"]
+                    if not value:
+                        return None
                     return value[0]["Title"]
     except requests.exceptions.RequestException as e:
             print(f"Error occurred: {e}")
@@ -85,8 +87,9 @@ def update_mp_list(mp_url, mp_token, data):
 def get_mp_list_item_lookup_id(mp_url, mp_list, mp_token, name):
     if not name:
         return None
+    correct_name = correct_query_string(name)
     url_string = f"{mp_url}/api/item/getRecursive/{mp_list}"
-    filter_string = f'item => item.GetValueAsString("name") == "{name}"'
+    filter_string = f'item => item.GetValueAsString(\"name\") == \"{correct_name}\"'
     payload = {"query": filter_string}
     try:
          with requests.post(url=url_string, headers={'Authorization': mp_token}, json=payload) as response:
@@ -99,7 +102,7 @@ def get_mp_list_item_lookup_id(mp_url, mp_list, mp_token, name):
     except requests.exceptions.RequestException as e:
         print(f"Error occurred: {e}")
         return None
-    
+
 def process_field(item, field_config, sp_token, mp_token):
     if field_config['type'] == 'direct':
         return item.get(field_config['sp_source'])
@@ -111,10 +114,17 @@ def process_field(item, field_config, sp_token, mp_token):
             return mp_lookup_id
     return None
 
+def correct_query_string(name):
+    symbols = ['"']
+    correct_name = name
+    for symbol in symbols:
+        correct_name = correct_name.replace(symbol, '\\"')
+    return correct_name
+
 def main():
     sp_token = get_sp_token(sp_url, sp_login, sp_headers)
     mp_token = get_mp_token(mp_url, mp_login)
-    
+
     data_list = get_sp_list_item(sp_url, sp_login, sp_headers, sp_list, sp_token, sp_content_type)
 
     if data_list is not None:

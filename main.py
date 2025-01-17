@@ -42,7 +42,7 @@ def get_sp_list_item(sp_url, sp_login, sp_headers, sp_list, sp_token, sp_content
 def get_sp_list_item_name(sp_url, sp_login, sp_headers, sp_list, sp_token, item_id):
     if not item_id:
          return None
-    list_url = f"{sp_url}/_api/web/lists('{sp_list}')/items?$filter=ID eq '{item_id}'"
+    list_url = f"{sp_url}/_api/web/lists('{sp_list}')/items('{item_id}')"
     get_headers = sp_headers.copy()
     get_headers['X-RequestDigest'] = sp_token
     try:
@@ -51,10 +51,32 @@ def get_sp_list_item_name(sp_url, sp_login, sp_headers, sp_list, sp_token, item_
                     response_json = json.loads(response.text)
                     if len(response_json) == 0:
                         return None
-                    value = response_json["d"]["results"]
+                    value = response_json["d"]
                     if not value:
                         return None
-                    return value[0]["Title"]
+                    return value["Title"]
+    except requests.exceptions.RequestException as e:
+            print(f"Error occurred: {e}")
+            return None
+
+def get_sp_list_item_parent_name(sp_url, sp_login, sp_headers, sp_list, sp_token, item_id):
+    if not item_id:
+         return None
+    list_url = f"{sp_url}/_api/web/lists('{sp_list}')/items('{item_id}')/FieldValuesAsText"
+    get_headers = sp_headers.copy()
+    get_headers['X-RequestDigest'] = sp_token
+    try:
+            with requests.get(list_url, auth=sp_login, headers=get_headers) as response:
+                    response.raise_for_status()
+                    response_json = json.loads(response.text)
+                    if len(response_json) == 0:
+                        return None
+                    value = response_json["d"]
+                    if not value:
+                        return None
+                    item_dir = value["FileDirRef"]
+                    parent_name = item_dir.split('/')[-1]
+                    return parent_name
     except requests.exceptions.RequestException as e:
             print(f"Error occurred: {e}")
             return None
@@ -112,6 +134,10 @@ def process_field(item, field_config, sp_token, mp_token):
             sp_title = get_sp_list_item_name(sp_url, sp_login, sp_headers, field_config['sp_list'], sp_token, sp_lookup_id)
             mp_lookup_id = get_mp_list_item_lookup_id(mp_url, field_config['mp_list'], mp_token, sp_title)
             return mp_lookup_id
+    elif field_config['type'] == 'parent':
+        sp_parent_name = get_sp_list_item_parent_name(sp_url, sp_login, sp_headers, sp_list, sp_token, item['ID'])
+        mp_parent_id = get_mp_list_item_lookup_id(mp_url, mp_list, mp_token, sp_parent_name)
+        return mp_parent_id
     return None
 
 def correct_query_string(name):
@@ -137,7 +163,6 @@ def main():
             for field_name, field_config in mapping_config['fields'].items():
                 processed_item[field_name] = process_field(item, field_config, sp_token, mp_token)
             processed_data.append(processed_item)
-
         update_mp_list(mp_url, mp_token, processed_data)
 
 if __name__ == '__main__':
